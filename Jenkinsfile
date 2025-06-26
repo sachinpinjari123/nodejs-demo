@@ -6,17 +6,17 @@ pipeline {
                 checkout scm
             }
         }
-        stage('Build Image') {
+        stage('Trigger OpenShift Build') {
             steps {
                 sh '''
-                  oc start-build -F nodejs-demo --from-dir=.
+                  oc start-build nodejs-demo --from-dir=. -F
                 '''
             }
         }
-        stage('Deploy') {
+        stage('Rollout Deploy') {
             steps {
                 sh '''
-                  oc rollout latest dc/nodejs-demo
+                  oc rollout restart deployment/nodejs-demo
                 '''
             }
         }
