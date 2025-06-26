@@ -1,23 +1,46 @@
 pipeline {
     agent any
+
+    environment {
+        PROJECT = 'ci-cd'
+        APP_NAME = 'nodejs-demo'
+    }
+
     stages {
         stage('Checkout') {
             steps {
                 checkout scm
             }
         }
-        stage('Trigger OpenShift Build') {
+        stage('Build Image') {
             steps {
                 sh '''
-                  oc start-build nodejs-demo --from-dir=. -F
+                    oc project $PROJECT
+                    oc start-build $APP_NAME --from-dir=. -F
                 '''
             }
         }
-        stage('Rollout Deploy') {
+        stage('Deploy') {
             steps {
-                sh '''
-                  oc rollout restart deployment/nodejs-demo
-                '''
+                script {
+                    def deployExists = sh(
+                        script: "oc get deployment $APP_NAME -n $PROJECT --ignore-not-found",
+                        returnStatus: true
+                    ) == 0
+
+                    if (deployExists) {
+                        sh '''
+                            echo "Deployment exists, triggering rollout..."
+                            oc rollout restart deployment/$APP_NAME -n $PROJECT
+                        '''
+                    } else {
+                        sh '''
+                            echo "Deployment not found, creating new app..."
+                            oc new-app $APP_NAME:latest -n $PROJECT || true
+                            oc expose svc/$APP_NAME -n $PROJECT || true
+                        '''
+                    }
+                }
             }
         }
     }
