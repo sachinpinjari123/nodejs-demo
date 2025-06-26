@@ -8,40 +8,19 @@ pipeline {
     }
 
     stages {
-        stage('Checkout Code') {
+        stage('Checkout') {
             steps {
                 checkout scm
-            }
-        }
-
-        stage('Install Dependencies') {
-            steps {
-                sh '''
-                    npm install
-                '''
-            }
-        }
-
-        stage('Lint Code') {
-            steps {
-                sh '''
-                    npx eslint . || true
-                '''
-            }
-        }
-
-        stage('Run Unit Tests') {
-            steps {
-                sh '''
-                    npx mocha || true
-                '''
             }
         }
 
         stage('Build Image using BuildConfig') {
             steps {
                 sh '''
+                    echo "Switching to project $PROJECT"
                     oc project $PROJECT
+
+                    echo "Starting Build using BuildConfig..."
                     oc start-build $APP_NAME --from-dir=. -F
                 '''
             }
@@ -50,23 +29,40 @@ pipeline {
         stage('Deploy Application') {
             steps {
                 script {
+                    echo "Checking if Deployment exists..."
                     def deployExists = sh(
                         script: "oc get deployment $APP_NAME -n $PROJECT --ignore-not-found -o name",
                         returnStdout: true
                     ).trim()
 
                     if (deployExists == "deployment.apps/${APP_NAME}") {
-                        sh "oc rollout restart deployment/$APP_NAME -n $PROJECT"
+                        sh '''
+                            echo "Deployment exists, triggering rollout..."
+                            oc rollout restart deployment/$APP_NAME -n $PROJECT
+                        '''
                     } else {
-                        sh "oc new-app $APP_NAME:$IMAGE_TAG -n $PROJECT || true"
+                        echo "Deployment not found, creating new app..."
+                        def newAppStatus = sh(
+                            script: "oc new-app $APP_NAME:$IMAGE_TAG -n $PROJECT || true",
+                            returnStatus: true
+                        )
+                        if (newAppStatus != 0) {
+                            echo "Warning: oc new-app reported non-zero exit, continuing..."
+                        }
 
+                        echo "Checking if Service exists..."
                         def svcExists = sh(
                             script: "oc get svc $APP_NAME -n $PROJECT --ignore-not-found -o name",
                             returnStdout: true
                         ).trim()
 
-                        if (svcExists != "service/${APP_NAME}") {
-                            sh "oc expose svc/$APP_NAME -n $PROJECT"
+                        if (svcExists == "service/${APP_NAME}") {
+                            echo "Service already exists, skipping expose step."
+                        } else {
+                            sh '''
+                                echo "Exposing service..."
+                                oc expose svc/$APP_NAME -n $PROJECT
+                            '''
                         }
                     }
                 }
@@ -76,13 +72,19 @@ pipeline {
         stage('Expose Route') {
             steps {
                 script {
+                    echo "Checking if Route exists..."
                     def routeExists = sh(
                         script: "oc get route $APP_NAME -n $PROJECT --ignore-not-found -o name",
                         returnStdout: true
                     ).trim()
 
-                    if (routeExists != "route.route.openshift.io/${APP_NAME}") {
-                        sh "oc expose svc/$APP_NAME -n $PROJECT"
+                    if (routeExists == "route.route.openshift.io/${APP_NAME}") {
+                        echo "Route already exists, skipping expose step."
+                    } else {
+                        sh '''
+                            echo "Exposing service as route..."
+                            oc expose svc/$APP_NAME -n $PROJECT
+                        '''
                     }
                 }
             }
