@@ -68,5 +68,26 @@ pipeline {
                 }
             }
         }
+
+        stage('Expose Route') {
+            steps {
+                script {
+                    echo "Checking if Route exists..."
+                    def routeExists = sh(
+                        script: "oc get route $APP_NAME -n $PROJECT --ignore-not-found -o name",
+                        returnStdout: true
+                    ).trim()
+
+                    if (routeExists == "route.route.openshift.io/${APP_NAME}") {
+                        echo "Route already exists, skipping expose step."
+                    } else {
+                        sh '''
+                            echo "Exposing service as route..."
+                            oc expose svc/$APP_NAME -n $PROJECT
+                        '''
+                    }
+                }
+            }
+        }
     }
 }
