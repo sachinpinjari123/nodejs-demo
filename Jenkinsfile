@@ -4,6 +4,7 @@ pipeline {
     environment {
         PROJECT = 'ci-cd'
         APP_NAME = 'nodejs-demo'
+        IMAGE_TAG = 'latest'
     }
 
     stages {
@@ -13,17 +14,19 @@ pipeline {
             }
         }
 
-        stage('Build Image') {
+        stage('Build Image using BuildConfig') {
             steps {
                 sh '''
+                    echo "Switching to project $PROJECT"
                     oc project $PROJECT
+
                     echo "Starting Build using BuildConfig..."
                     oc start-build $APP_NAME --from-dir=. -F
                 '''
             }
         }
 
-        stage('Deploy') {
+        stage('Deploy Application') {
             steps {
                 script {
                     echo "Checking if Deployment exists..."
@@ -40,8 +43,8 @@ pipeline {
                         '''
                     } else {
                         sh '''
-                            echo "Deployment not found, creating new app..."
-                            oc new-app $APP_NAME:latest -n $PROJECT
+                            echo "Deployment not found, creating new app using ImageStream..."
+                            oc new-app $APP_NAME:$IMAGE_TAG -n $PROJECT
                             oc expose svc/$APP_NAME -n $PROJECT || true
                         '''
                     }
