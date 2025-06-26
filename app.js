@@ -3,7 +3,7 @@ const app = express();
 const port = process.env.PORT || 8080;
 
 app.get('/', (req, res) => {
-    res.send('Hello from OpenShift CI/CD Pipeline!');
+    res.send('Hello, this is an UPDATED version from OpenShift CI/CD Pipeline!');
 });
 
 app.listen(port, () => {
