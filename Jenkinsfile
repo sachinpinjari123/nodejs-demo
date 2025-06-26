@@ -12,17 +12,21 @@ pipeline {
                 checkout scm
             }
         }
+
         stage('Build Image') {
             steps {
                 sh '''
                     oc project $PROJECT
+                    echo "Starting Build..."
                     oc start-build $APP_NAME --from-dir=. -F
                 '''
             }
         }
+
         stage('Deploy') {
             steps {
                 script {
+                    echo "Checking if Deployment exists..."
                     def deployExists = sh(
                         script: "oc get deployment $APP_NAME -n $PROJECT --ignore-not-found",
                         returnStatus: true
@@ -36,7 +40,7 @@ pipeline {
                     } else {
                         sh '''
                             echo "Deployment not found, creating new app..."
-                            oc new-app $APP_NAME:latest -n $PROJECT || true
+                            oc new-app $APP_NAME:latest -n $PROJECT
                             oc expose svc/$APP_NAME -n $PROJECT || true
                         '''
                     }
