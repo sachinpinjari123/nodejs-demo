@@ -2,32 +2,34 @@ stage('Deploy Application') {
     steps {
         script {
             echo "Checking if Deployment exists..."
-
-            def deployOutput = sh(
+            def deployExists = sh(
                 script: "oc get deployment $APP_NAME -n $PROJECT --ignore-not-found -o name",
                 returnStdout: true
             ).trim()
 
-            if (deployOutput == "deployment.apps/${APP_NAME}") {
+            if (deployExists == "deployment.apps/${APP_NAME}") {
                 sh '''
                     echo "Deployment exists, triggering rollout..."
                     oc rollout restart deployment/$APP_NAME -n $PROJECT
                 '''
             } else {
-                sh '''
-                    echo "Deployment not found, creating new app using ImageStream..."
-                    oc new-app $APP_NAME:latest -n $PROJECT || true
-                '''
+                echo "Deployment not found, creating new app..."
+                def newAppStatus = sh(
+                    script: "oc new-app $APP_NAME:latest -n $PROJECT || true",
+                    returnStatus: true
+                )
+                if (newAppStatus != 0) {
+                    echo "Warning: oc new-app reported a non-zero exit but continuing..."
+                }
 
                 echo "Checking if Service exists..."
-
-                def svcOutput = sh(
+                def svcExists = sh(
                     script: "oc get svc $APP_NAME -n $PROJECT --ignore-not-found -o name",
                     returnStdout: true
                 ).trim()
 
-                if (svcOutput == "service/${APP_NAME}") {
-                    echo "Service already exists, skipping expose step..."
+                if (svcExists == "service/${APP_NAME}") {
+                    echo "Service already exists, skipping expose step."
                 } else {
                     sh '''
                         echo "Exposing service..."
